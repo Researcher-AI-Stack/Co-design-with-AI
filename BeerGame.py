@@ -271,19 +271,16 @@ def demand_chart(game_mode: GameMode, current_week: int, interactive: bool = Fal
         x=alt.X("week:O", title="Week"),
         y=alt.Y("demand:Q", title="Demand"),
     )
+    # Use a simple fill and line colour.  Vega-Lite v6 does not allow a gradient
+    # definition as the colour value for marks, so specifying a Gradient here
+    # raises a SchemaValidationError.  Instead we set a fixed colour and
+    # adjust the opacity for the filled area.  If you prefer a gradient
+    # appearance you can overlay a semi-transparent rectangle or customise
+    # styling further, but a constant opacity yields a clean result.
     area = base.mark_area(
         line={"color": game_mode.primary_color},
-        color=alt.Gradient(
-            gradient="linear",
-            stops=[
-                {"offset": 0, "color": game_mode.primary_color, "opacity": 0.3},
-                {"offset": 1, "color": game_mode.primary_color, "opacity": 0.0},
-            ],
-            x1=0,
-            x2=0,
-            y1=1,
-            y2=0,
-        ),
+        color=game_mode.primary_color,
+        opacity=0.3,
     )
     chart = area
     if interactive:
