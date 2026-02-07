@@ -558,6 +558,15 @@ def main() -> None:
         st.subheader(f"Week {current_week + 1} / {TOTAL_WEEKS}")
         current_demand = active_game.demand[current_week] if current_week < len(active_game.demand) else active_game.demand[-1]
         st.write(f"Current external demand: **{current_demand}** {active_game.unit}")
+
+        st.markdown("### Live Supply Chain Flow")
+        render_supply_chain_diagram(
+            image_path="assets/flow_diagram.png",
+            game_state=game_state,
+            ai_thoughts=ai_thoughts,
+            current_demand=current_demand,
+            unit=active_game.unit,
+        )
         st.altair_chart(demand_chart(active_game, current_week, interactive=True), use_container_width=True)
         # Display total chain cost
         total_chain_cost = sum(total_costs.values())
