@@ -257,12 +257,12 @@ def process_turn(
     # --- Step 3: production pipeline at factory uses factory's "order" (production request)
     next_state["factory"].incoming[1] = decisions["factory"][0]
     
-        # Starting from factory (top) down to retailer (bottom).  The demands for
-        # distributor, wholesaler and retailer depend on downstream orders.
-        calculate_flow("factory", decisions["distributor"][0])
-        calculate_flow("distributor", decisions["wholesaler"][0])
-        calculate_flow("wholesaler", decisions["retailer"][0])
-        calculate_flow("retailer", external_demand)
+    # Starting from factory (top) down to retailer (bottom).  The demands for
+    # distributor, wholesaler and retailer depend on downstream orders.
+    calculate_flow("factory", decisions["distributor"][0])
+    calculate_flow("distributor", decisions["wholesaler"][0])
+    calculate_flow("wholesaler", decisions["retailer"][0])
+    calculate_flow("retailer", external_demand)
 
     # Record AI reasoning for each role.
     for rid in ROLE_IDS:
