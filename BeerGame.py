@@ -332,12 +332,40 @@ def inventory_health_chart(history: List[Dict], game_mode: GameMode) -> alt.Char
 
     return (line + points).properties(height=250)
 
-def _img_to_base64(path: str) -> str:
-    data = Path(path).read_bytes()
+from pathlib import Path
+import base64
+import streamlit as st
+
+def _img_to_base64(path: str) -> str | None:
+    """
+    Read an image from disk and return base64 string.
+    Returns None if missing, and shows a helpful message.
+    """
+    # Resolve relative to this file (BeerGame.py), not the process CWD
+    here = Path(__file__).resolve().parent
+    p = Path(path)
+    if not p.is_absolute():
+        p = (here / p).resolve()
+
+    if not p.exists():
+        st.error(
+            "Diagram image not found.\n\n"
+            f"Expected at: `{p}`\n\n"
+            "Fix: add/commit the file to your repo at `assets/flow_diagram.png` "
+            "or update `image_path` to the correct location."
+        )
+        return None
+
+    data = p.read_bytes()
     return base64.b64encode(data).decode("utf-8")
 
 
+
 def render_supply_chain_diagram(
+    img64 = _img_to_base64(image_path)
+    if img64 is None:
+        return  # don't crash the app
+    
     image_path: str,
     game_state: Dict[str, RoleState],
     ai_thoughts: Dict[str, Dict[str, str]],
