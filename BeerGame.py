@@ -32,8 +32,6 @@ import pandas as pd  # type: ignore
 import requests  # type: ignore
 import streamlit as st  # type: ignore
 import altair as alt  # type: ignore
-import base64
-from pathlib import Path
 
 
 # -----------------------------------------------------------------------------
@@ -332,183 +330,6 @@ def inventory_health_chart(history: List[Dict], game_mode: GameMode) -> alt.Char
 
     return (line + points).properties(height=250)
 
-from pathlib import Path
-import base64
-import streamlit as st
-
-def _img_to_base64(path: str) -> str | None:
-    """
-    Read an image from disk and return base64 string.
-    Returns None if missing, and shows a helpful message.
-    """
-    # Resolve relative to this file (BeerGame.py), not the process CWD
-    here = Path(__file__).resolve().parent
-    p = Path(path)
-    if not p.is_absolute():
-        p = (here / p).resolve()
-
-    if not p.exists():
-        st.error(
-            "Diagram image not found.\n\n"
-            f"Expected at: `{p}`\n\n"
-            "Fix: add/commit the file to your repo at `assets/flow_diagram.png` "
-            "or update `image_path` to the correct location."
-        )
-        return None
-
-    data = p.read_bytes()
-    return base64.b64encode(data).decode("utf-8")
-
-
-
-def render_supply_chain_diagram(
-    img64 = _img_to_base64(image_path)
-    if img64 is None:
-        return  # don't crash the app
-    
-    image_path: str,
-    game_state: Dict[str, RoleState],
-    ai_thoughts: Dict[str, Dict[str, str]],
-    current_demand: float,
-    unit: str,
-) -> None:
-    """
-    Renders the diagram image with dynamic number overlays.
-    Positions are in % of image width/height (easy to tune).
-    """
-
-    # --- Compute the numbers we want to show ---
-    # Inventories
-    retailer_inv = game_state["retailer"].inv
-    wholesaler_inv = game_state["wholesaler"].inv
-    distributor_inv = game_state["distributor"].inv
-    factory_inv = game_state["factory"].inv
-
-    # Backlogs (optional – handy to display)
-    retailer_backlog = game_state["retailer"].backlog
-    wholesaler_backlog = game_state["wholesaler"].backlog
-    distributor_backlog = game_state["distributor"].backlog
-    factory_backlog = game_state["factory"].backlog
-
-    # Shipment delays (in transit) for each downstream receiver:
-    # Retailer receives shipments from wholesaler -> retailer.incoming queue
-    r_ship_0, r_ship_1 = game_state["retailer"].incoming
-    # Wholesaler receives shipments from distributor -> wholesaler.incoming queue
-    w_ship_0, w_ship_1 = game_state["wholesaler"].incoming
-    # Distributor receives shipments from factory -> distributor.incoming queue
-    d_ship_0, d_ship_1 = game_state["distributor"].incoming
-    # Factory "incoming" is your production delay queue -> factory.incoming queue
-    f_prod_0, f_prod_1 = game_state["factory"].incoming
-
-    # Orders placed (last decisions). ai_thoughts[*]["order"] is set each turn in process_turn().
-    # If not present yet, default to 0.
-    def last_order(role: str) -> int:
-        v = ai_thoughts.get(role, {}).get("order", 0)
-        try:
-            return int(v)
-        except Exception:
-            return 0
-
-    retailer_order = last_order("retailer")
-    wholesaler_order = last_order("wholesaler")
-    distributor_order = last_order("distributor")
-    factory_order = last_order("factory")
-
-    # --- Overlay positions (TUNE THESE ONCE and you're done) ---
-    # Each entry: (left%, top%, text)
-    overlays = [
-        # Top row: demand + orders placed
-        (8, 22, f"{int(current_demand)}"),                # Customer Orders
-        (22, 15, f"{retailer_order}"),                   # Retailer Orders Placed
-        (43, 15, f"{wholesaler_order}"),                 # Wholesaler Orders Placed
-        (64, 15, f"{distributor_order}"),                # Distributor Orders Placed
-        (86, 15, f"{factory_order}"),                    # Factory Production Request
-
-        # Bottom row: inventories
-        (22, 72, f"{retailer_inv}"),                     # Retailer Inventory
-        (43, 72, f"{wholesaler_inv}"),                   # Wholesaler Inventory
-        (64, 72, f"{distributor_inv}"),                  # Distributor Inventory
-        (86, 72, f"{factory_inv}"),                      # Factory Inventory
-
-        # Shipment delays boxes (two circles each)
-        (30, 72, f"{r_ship_0}"),                         # Retailer incoming[0]
-        (35, 72, f"{r_ship_1}"),                         # Retailer incoming[1]
-
-        (51, 72, f"{w_ship_0}"),                         # Wholesaler incoming[0]
-        (56, 72, f"{w_ship_1}"),                         # Wholesaler incoming[1]
-
-        (72, 72, f"{d_ship_0}"),                         # Distributor incoming[0]
-        (77, 72, f"{d_ship_1}"),                         # Distributor incoming[1]
-
-        # Production delay (factory incoming queue shown on far right in your image)
-        (94, 52, f"{f_prod_0}"),                         # Factory incoming[0]
-        (94, 62, f"{f_prod_1}"),                         # Factory incoming[1]
-    ]
-
-    # Optional: show backlogs too (comment in if you want them on the diagram)
-    # overlays += [
-    #     (22, 79, f"BL:{retailer_backlog}"),
-    #     (43, 79, f"BL:{wholesaler_backlog}"),
-    #     (64, 79, f"BL:{distributor_backlog}"),
-    #     (86, 79, f"BL:{factory_backlog}"),
-    # ]
-
-    img64 = _img_to_base64(image_path)
-
-    # Build HTML
-    overlay_divs = "\n".join(
-        f"""
-        <div class="num" style="left:{lx}%; top:{ty}%;">
-            {txt}
-        </div>
-        """
-        for (lx, ty, txt) in overlays
-    )
-
-    html = f"""
-    <div class="diagram-wrap">
-      <img src="data:image/png;base64,{img64}" class="diagram-img" />
-      {overlay_divs}
-    </div>
-
-    <style>
-      .diagram-wrap {{
-        position: relative;
-        width: 100%;
-        max-width: 1200px;
-        margin: 0 auto;
-      }}
-      .diagram-img {{
-        width: 100%;
-        height: auto;
-        display: block;
-      }}
-      .num {{
-        position: absolute;
-        transform: translate(-50%, -50%);
-        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-        font-weight: 700;
-        font-size: 16px;
-        color: #111827;
-        background: rgba(255,255,255,0.85);
-        border: 1px solid rgba(17,24,39,0.15);
-        border-radius: 10px;
-        padding: 2px 8px;
-        line-height: 1.2;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.08);
-      }}
-      @media (max-width: 800px) {{
-        .num {{
-          font-size: 12px;
-          padding: 1px 6px;
-        }}
-      }}
-    </style>
-    """
-
-    st.markdown(html, unsafe_allow_html=True)
-
-
 
 def main() -> None:
     st.set_page_config(page_title="Supply Chain Simulation", layout="wide")
@@ -586,15 +407,6 @@ def main() -> None:
         st.subheader(f"Week {current_week + 1} / {TOTAL_WEEKS}")
         current_demand = active_game.demand[current_week] if current_week < len(active_game.demand) else active_game.demand[-1]
         st.write(f"Current external demand: **{current_demand}** {active_game.unit}")
-
-        st.markdown("### Live Supply Chain Flow")
-        render_supply_chain_diagram(
-            image_path="assets/flow_diagram.png",
-            game_state=game_state,
-            ai_thoughts=ai_thoughts,
-            current_demand=current_demand,
-            unit=active_game.unit,
-        )
         st.altair_chart(demand_chart(active_game, current_week, interactive=True), use_container_width=True)
         # Display total chain cost
         total_chain_cost = sum(total_costs.values())
