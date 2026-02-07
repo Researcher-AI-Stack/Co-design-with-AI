@@ -221,29 +221,48 @@ def process_turn(
     next_state = {rid: RoleState(inv=st.inv, backlog=st.backlog, incoming=list(st.incoming)) for rid, st in game_state.items()}
     next_costs = total_costs.copy()
 
-    def calculate_flow(role_id: str, demand_from_below: int) -> int:
+    # --- Step 1: receive incoming & decide shipments based on inventory/backlog ---
+    def step(role_id: str, demand_from_below: int) -> int:
         state = next_state[role_id]
-        # Receive incoming deliveries.
+    
+        # Receive incoming deliveries
         arrived = state.incoming[0]
         state.inv += arrived
-        # Shift the incoming queue and append the new order.
-        order = decisions[role_id][0]
-        state.incoming = [state.incoming[1], order]
-        # Ship to downstream as much as possible.
+    
+        # Shift incoming queue forward; placeholder for new incoming[1] filled later
+        state.incoming = [state.incoming[1], 0]
+    
+        # Ship as much as possible
         total_needed = demand_from_below + state.backlog
         shipped = min(state.inv, total_needed)
         state.inv -= shipped
         state.backlog = total_needed - shipped
-        # Update costs.
+    
+        # Costs
         next_costs[role_id] += state.inv * HOLDING_COST + state.backlog * BACKLOG_COST
         return shipped
-
-    # Starting from factory (top) down to retailer (bottom).  The demands for
-    # distributor, wholesaler and retailer depend on downstream orders.
-    calculate_flow("factory", decisions["distributor"][0])
-    calculate_flow("distributor", decisions["wholesaler"][0])
-    calculate_flow("wholesaler", decisions["retailer"][0])
-    calculate_flow("retailer", external_demand)
+    
+    # demands down the chain
+    ship_to_dist = step("factory", decisions["distributor"][0])
+    ship_to_whole = step("distributor", decisions["wholesaler"][0])
+    ship_to_retail = step("wholesaler", decisions["retailer"][0])
+    ship_to_customer = step("retailer", external_demand)
+    
+    # --- Step 2: push shipments into downstream incoming queues (2-week delay) ---
+    # shipments arrive in 2 weeks -> go into incoming[1] of the receiver
+    next_state["distributor"].incoming[1] = ship_to_dist
+    next_state["wholesaler"].incoming[1] = ship_to_whole
+    next_state["retailer"].incoming[1] = ship_to_retail
+    
+    # --- Step 3: production pipeline at factory uses factory's "order" (production request)
+    next_state["factory"].incoming[1] = decisions["factory"][0]
+    
+        # Starting from factory (top) down to retailer (bottom).  The demands for
+        # distributor, wholesaler and retailer depend on downstream orders.
+        calculate_flow("factory", decisions["distributor"][0])
+        calculate_flow("distributor", decisions["wholesaler"][0])
+        calculate_flow("wholesaler", decisions["retailer"][0])
+        calculate_flow("retailer", external_demand)
 
     # Record AI reasoning for each role.
     for rid in ROLE_IDS:
@@ -330,6 +349,175 @@ def inventory_health_chart(history: List[Dict], game_mode: GameMode) -> alt.Char
 
     return (line + points).properties(height=250)
 
+def render_generated_supply_chain_diagram(
+    game_state: Dict[str, RoleState],
+    ai_thoughts: Dict[str, Dict[str, str]],
+    current_demand: float,
+    unit_label: str,
+) -> None:
+    """
+    Draws a supply-chain diagram (no external image) using SVG.
+    Numbers update automatically from `game_state` + `ai_thoughts`.
+    """
+
+    def last_order(role: str) -> int:
+        v = ai_thoughts.get(role, {}).get("order", 0)
+        try:
+            return int(v)
+        except Exception:
+            return 0
+
+    # Values from state
+    r = game_state["retailer"]
+    w = game_state["wholesaler"]
+    d = game_state["distributor"]
+    f = game_state["factory"]
+
+    # Orders placed (top row)
+    retailer_order = last_order("retailer")
+    wholesaler_order = last_order("wholesaler")
+    distributor_order = last_order("distributor")
+    factory_order = last_order("factory")
+
+    # Incoming queues (shipment/production delays)
+    r0, r1 = r.incoming
+    w0, w1 = w.incoming
+    d0, d1 = d.incoming
+    f0, f1 = f.incoming
+
+    # Inventories + backlogs
+    retailer_inv, retailer_bl = r.inv, r.backlog
+    wholesaler_inv, wholesaler_bl = w.inv, w.backlog
+    distributor_inv, distributor_bl = d.inv, d.backlog
+    factory_inv, factory_bl = f.inv, f.backlog
+
+    # Simple palette
+    C_RETAIL = "#bfdbfe"   # light blue
+    C_WHOLE  = "#bae6fd"   # cyan-ish
+    C_DIST   = "#d9f99d"   # light green
+    C_FACT   = "#fecaca"   # light red
+    C_TEXT   = "#111827"
+    C_LINE   = "#6b7280"
+    C_BOX    = "#f3f4f6"
+
+    # SVG canvas size (viewBox); scales responsively
+    W, H = 1200, 420
+
+    # Helper snippets
+    def circle(x, y, r, fill, label, value=None):
+        t_value = f'<text x="{x}" y="{y+6}" text-anchor="middle" font-size="18" font-weight="800" fill="{C_TEXT}">{value}</text>' if value is not None else ""
+        return f"""
+        <g>
+          <circle cx="{x}" cy="{y}" r="{r}" fill="{fill}" stroke="rgba(17,24,39,0.15)" stroke-width="2"></circle>
+          <text x="{x}" y="{y-r-10}" text-anchor="middle" font-size="14" font-weight="700" fill="{C_TEXT}">{label}</text>
+          {t_value}
+        </g>
+        """
+
+    def rect(x, y, w, h, fill, label, value=None, sub=None):
+        t_value = f'<text x="{x+w/2}" y="{y+h/2+6}" text-anchor="middle" font-size="18" font-weight="800" fill="{C_TEXT}">{value}</text>' if value is not None else ""
+        t_sub = f'<text x="{x+w/2}" y="{y+h+18}" text-anchor="middle" font-size="12" fill="{C_TEXT}" opacity="0.75">{sub}</text>' if sub else ""
+        return f"""
+        <g>
+          <rect x="{x}" y="{y}" rx="14" ry="14" width="{w}" height="{h}" fill="{fill}" stroke="rgba(17,24,39,0.15)" stroke-width="2"></rect>
+          <text x="{x+w/2}" y="{y-10}" text-anchor="middle" font-size="14" font-weight="700" fill="{C_TEXT}">{label}</text>
+          {t_value}
+          {t_sub}
+        </g>
+        """
+
+    def arrow(x1, y1, x2, y2):
+        return f"""
+        <line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{C_LINE}" stroke-width="3" marker-end="url(#arrow)"/>
+        """
+
+    def small_delay_box(x, y, a, b):
+        # Two small circles inside a rounded rectangle (for 2-week delay queue)
+        return f"""
+        <g>
+          <rect x="{x}" y="{y}" rx="16" ry="16" width="170" height="70" fill="{C_BOX}" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
+          <circle cx="{x+60}" cy="{y+35}" r="22" fill="white" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
+          <circle cx="{x+110}" cy="{y+35}" r="22" fill="white" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
+          <text x="{x+60}" y="{y+41}" text-anchor="middle" font-size="16" font-weight="800" fill="{C_TEXT}">{a}</text>
+          <text x="{x+110}" y="{y+41}" text-anchor="middle" font-size="16" font-weight="800" fill="{C_TEXT}">{b}</text>
+          <text x="{x+85}" y="{y+92}" text-anchor="middle" font-size="12" fill="{C_TEXT}" opacity="0.75">shipment delays</text>
+        </g>
+        """
+
+    # Layout coordinates
+    top_y = 90
+    bot_y = 305
+
+    x_customer = 90
+    x_retail   = 310
+    x_whole    = 530
+    x_dist     = 750
+    x_fact     = 970
+
+    svg = f"""
+    <div style="width:100%; max-width:1200px; margin:0 auto;">
+      <svg viewBox="0 0 {W} {H}" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="{C_LINE}"/>
+          </marker>
+        </defs>
+
+        <!-- Top flow: Orders -->
+        {circle(x_customer, top_y, 48, "white", "Customer Orders", int(current_demand))}
+        {arrow(x_customer+55, top_y, x_retail-55, top_y)}
+        {circle(x_retail, top_y, 48, C_RETAIL, "Retailer Orders", retailer_order)}
+        {arrow(x_retail+55, top_y, x_whole-55, top_y)}
+        {circle(x_whole, top_y, 48, C_WHOLE, "Wholesaler Orders", wholesaler_order)}
+        {arrow(x_whole+55, top_y, x_dist-55, top_y)}
+        {circle(x_dist, top_y, 48, C_DIST, "Distributor Orders", distributor_order)}
+        {arrow(x_dist+55, top_y, x_fact-55, top_y)}
+        {circle(x_fact, top_y, 48, C_FACT, "Factory Request", factory_order)}
+
+        <!-- Bottom flow: Shipments / Inventories -->
+        {rect(x_retail-65, bot_y-35, 130, 70, C_RETAIL, "Retailer Inventory", retailer_inv, sub=f"backlog: {retailer_bl}")}
+        {arrow(x_retail-75, bot_y, x_customer+55, bot_y)}
+
+        {small_delay_box(x_retail+85, bot_y-35, r0, r1)}
+        {arrow(x_retail+65, bot_y, x_retail+85, bot_y)}
+        {arrow(x_retail+255, bot_y, x_whole-65, bot_y)}
+
+        {rect(x_whole-65, bot_y-35, 130, 70, C_WHOLE, "Wholesaler Inventory", wholesaler_inv, sub=f"backlog: {wholesaler_bl}")}
+        {small_delay_box(x_whole+85, bot_y-35, w0, w1)}
+        {arrow(x_whole+65, bot_y, x_whole+85, bot_y)}
+        {arrow(x_whole+255, bot_y, x_dist-65, bot_y)}
+
+        {rect(x_dist-65, bot_y-35, 130, 70, C_DIST, "Distributor Inventory", distributor_inv, sub=f"backlog: {distributor_bl}")}
+        {small_delay_box(x_dist+85, bot_y-35, d0, d1)}
+        {arrow(x_dist+65, bot_y, x_dist+85, bot_y)}
+        {arrow(x_dist+255, bot_y, x_fact-65, bot_y)}
+
+        {rect(x_fact-65, bot_y-35, 130, 70, C_FACT, "Factory Inventory", factory_inv, sub=f"backlog: {factory_bl}")}
+
+        <!-- Production delays to the right -->
+        <g>
+          <rect x="{x_fact+120}" y="{top_y+40}" rx="16" ry="16" width="150" height="220"
+                fill="{C_BOX}" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
+          <text x="{x_fact+195}" y="{top_y+30}" text-anchor="middle" font-size="14" font-weight="700" fill="{C_TEXT}">
+            Production delays
+          </text>
+          <circle cx="{x_fact+195}" cy="{top_y+110}" r="26" fill="white" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
+          <circle cx="{x_fact+195}" cy="{top_y+185}" r="26" fill="white" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
+          <text x="{x_fact+195}" y="{top_y+116}" text-anchor="middle" font-size="16" font-weight="800" fill="{C_TEXT}">{f0}</text>
+          <text x="{x_fact+195}" y="{top_y+191}" text-anchor="middle" font-size="16" font-weight="800" fill="{C_TEXT}">{f1}</text>
+        </g>
+
+        <!-- Footer -->
+        <text x="{W/2}" y="{H-18}" text-anchor="middle" font-size="12" fill="{C_TEXT}" opacity="0.75">
+          Units: {unit_label} · Numbers update each submitted week (inventory / delays / orders)
+        </text>
+
+      </svg>
+    </div>
+    """
+
+    st.markdown(svg, unsafe_allow_html=True)
+
 
 def main() -> None:
     st.set_page_config(page_title="Supply Chain Simulation", layout="wide")
@@ -408,9 +596,20 @@ def main() -> None:
         current_demand = active_game.demand[current_week] if current_week < len(active_game.demand) else active_game.demand[-1]
         st.write(f"Current external demand: **{current_demand}** {active_game.unit}")
         st.altair_chart(demand_chart(active_game, current_week, interactive=True), use_container_width=True)
+
+
         # Display total chain cost
         total_chain_cost = sum(total_costs.values())
         st.metric(label="Total Chain Cost", value=f"${total_chain_cost:.0f}")
+        st.markdown("### Live Supply Chain Flow")
+        render_generated_supply_chain_diagram(
+            game_state=game_state,
+            ai_thoughts=ai_thoughts,
+            current_demand=current_demand,
+            unit_label=active_game.unit,
+        )
+
+        
         # Display role states and allow manual order entry
         manual_orders: Dict[str, int] = {}
         st.markdown("### Supply Chain Roles")
