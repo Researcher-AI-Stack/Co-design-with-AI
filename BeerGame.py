@@ -294,7 +294,9 @@ def demand_chart(game_mode: GameMode, current_week: int, interactive: bool = Fal
 def inventory_health_chart(history: List[Dict], game_mode: GameMode) -> alt.Chart:
     """Create an Altair line chart showing inventory health over time."""
     if not history:
-        return alt.Chart(pd.DataFrame({"week": [], "value": [], "metric": []}))
+        # Return a valid empty chart
+        return alt.Chart(pd.DataFrame({"week": [], "value": [], "metric": []})).mark_line()
+
     hist_df = pd.DataFrame(history)
     long_df = pd.melt(
         hist_df,
@@ -303,26 +305,30 @@ def inventory_health_chart(history: List[Dict], game_mode: GameMode) -> alt.Char
         var_name="metric",
         value_name="value",
     )
+
     color_map = {
         "retailerInv": game_mode.primary_color,
-        "factoryInv": "#1e293b",  # dark slate for factory stock
-        "demand": "#cbd5e1",  # light grey for demand path
+        "factoryInv": "#1e293b",
+        "demand": "#cbd5e1",
     }
-    chart = (
-        alt.Chart(long_df)
-        .mark_line(point=alt.OverlayMarkDef(filled=True, size=30))
-        .encode(
-            x=alt.X("week:Q", title="Week"),
-            y=alt.Y("value:Q", title="Value"),
-            color=alt.Color(
-                "metric:N",
-                scale=alt.Scale(domain=list(color_map.keys()), range=[color_map[k] for k in color_map]),
-                legend=alt.Legend(title="Metric"),
+
+    base = alt.Chart(long_df).encode(
+        x=alt.X("week:Q", title="Week"),
+        y=alt.Y("value:Q", title="Value"),
+        color=alt.Color(
+            "metric:N",
+            scale=alt.Scale(
+                domain=list(color_map.keys()),
+                range=[color_map[k] for k in color_map.keys()],
             ),
-        )
-        .properties(height=250)
+            legend=alt.Legend(title="Metric"),
+        ),
     )
-    return chart
+
+    line = base.mark_line()
+    points = base.mark_point(filled=True, size=30)
+
+    return (line + points).properties(height=250)
 
 
 def main() -> None:
