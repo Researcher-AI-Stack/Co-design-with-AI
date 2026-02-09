@@ -130,7 +130,7 @@ def call_ai_for_order(
     function returns a simple heuristic decision along with a brief reason.
     """
     # Fallback: order exactly the incoming demand.
-    fallback = (incoming_demand, "Smoothing demand.")
+    fallback = (int(round(incoming_demand)), "Smoothing demand.")
     if not api_key:
         return fallback
 
@@ -174,7 +174,7 @@ def call_ai_for_order(
         candidate = data.get("candidates", [{}])[0]
         content = candidate.get("content", {}).get("parts", [{}])[0].get("text", "")
         decision = json.loads(content)
-        order = int(decision.get("order", incoming_demand))
+        order = int(round(decision.get("order", incoming_demand)))
         reasoning = str(decision.get("reasoning", "AI reasoning unavailable."))
         return order, reasoning
     except Exception:
@@ -196,7 +196,9 @@ def process_turn(
     costs, AI thoughts and history.  The history list will be appended with
     this week's summary for plotting inventory health.
     """
-    external_demand = active_game.demand[current_week] if current_week < len(active_game.demand) else active_game.demand[-1]
+    external_demand_raw = active_game.demand[current_week] if current_week < len(active_game.demand) else active_game.demand[-1]
+    external_demand = int(round(external_demand_raw))
+
     decisions: Dict[str, Tuple[int, str]] = {}
     # Acquire decisions from AI or manual input.  We work from the bottom of the
     # supply chain up since each decision depends on the downstream order.
@@ -207,7 +209,7 @@ def process_turn(
         else:
             # The incoming demand for this role is the order placed by the downstream role.
             downstream = ROLE_IDS[ROLE_IDS.index(role) + 1]
-            incoming = decisions[downstream][0]
+            incoming = int(decisions[downstream][0])
         if role_configs.get(role, "AI") == "MANUAL":
             # Use manual order if provided; default to zero.
             order = int(manual_orders.get(role, 0))
@@ -624,8 +626,9 @@ def main() -> None:
         
             with col1:
                 st.markdown(f"**{rid.capitalize()}**")
-                st.markdown(f"Inventory: **{game_state[rid].inv}**")
-                st.markdown(f"Backlog: **{game_state[rid].backlog}**")
+                st.markdown(f"Inventory: **{int(game_state[rid].inv)}**")
+                st.markdown(f"Backlog: **{int(game_state[rid].backlog)}**")
+
         
             with col2:
                 st.markdown(f"Mode: **{role_configs[rid]}**")
