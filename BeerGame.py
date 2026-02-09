@@ -397,7 +397,7 @@ def render_generated_supply_chain_diagram(
     C_BOX    = "#f3f4f6"
 
     # SVG canvas size (viewBox); scales responsively
-    W, H = 1200, 420
+    W, H = 1200, 300
 
     # Helper snippets
     def circle(x, y, r, fill, label, value=None):
@@ -431,9 +431,9 @@ def render_generated_supply_chain_diagram(
         # Two small circles inside a rounded rectangle (for 2-week delay queue)
         return f"""
         <g>
-          <rect x="{x}" y="{y}" rx="16" ry="16" width="170" height="70" fill="{C_BOX}" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
-          <circle cx="{x+60}" cy="{y+35}" r="22" fill="white" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
-          <circle cx="{x+110}" cy="{y+35}" r="22" fill="white" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
+          <rect x="{x}" y="{y}" rx="16" ry="16" width="140" height="55" fill="{C_BOX}" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
+          <circle cx="{x+60}" cy="{y+35}" r="18" fill="white" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
+          <circle cx="{x+110}" cy="{y+35}" r="18" fill="white" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
           <text x="{x+60}" y="{y+41}" text-anchor="middle" font-size="16" font-weight="800" fill="{C_TEXT}">{a}</text>
           <text x="{x+110}" y="{y+41}" text-anchor="middle" font-size="16" font-weight="800" fill="{C_TEXT}">{b}</text>
           <text x="{x+85}" y="{y+92}" text-anchor="middle" font-size="12" fill="{C_TEXT}" opacity="0.75">shipment delays</text>
@@ -441,8 +441,8 @@ def render_generated_supply_chain_diagram(
         """
 
     # Layout coordinates
-    top_y = 90
-    bot_y = 305
+    top_y = 70
+    bot_y = 210
 
     x_customer = 90
     x_retail   = 310
@@ -451,27 +451,35 @@ def render_generated_supply_chain_diagram(
     x_fact     = 970
 
     svg = f"""
-    <div style="width:100%; max-width:1200px; margin:0 auto;">
-      <svg viewBox="0 0 {W} {H}" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L9,3 z" fill="{C_LINE}"/>
-          </marker>
-        </defs>
+    <div style="
+        width:100%;
+        max-width:100%;
+        overflow:hidden;
+        margin:0 auto;
+    ">
+      <svg viewBox="0 0 {W} {H}"
+           width="100%"
+           preserveAspectRatio="xMidYMid meet"
+           xmlns="http://www.w3.org/2000/svg">
+        ...
+      </svg>
+    </div>
+    """
+
 
         <!-- Top flow: Orders -->
-        {circle(x_customer, top_y, 48, "white", "Customer Orders", int(current_demand))}
+        {circle(x_customer, top_y, 38, "white", "Customer Orders", int(current_demand))}
         {arrow(x_customer+55, top_y, x_retail-55, top_y)}
-        {circle(x_retail, top_y, 48, C_RETAIL, "Retailer Orders", retailer_order)}
+        {circle(x_retail, top_y, 38, C_RETAIL, "Retailer Orders", retailer_order)}
         {arrow(x_retail+55, top_y, x_whole-55, top_y)}
-        {circle(x_whole, top_y, 48, C_WHOLE, "Wholesaler Orders", wholesaler_order)}
+        {circle(x_whole, top_y, 38, C_WHOLE, "Wholesaler Orders", wholesaler_order)}
         {arrow(x_whole+55, top_y, x_dist-55, top_y)}
-        {circle(x_dist, top_y, 48, C_DIST, "Distributor Orders", distributor_order)}
+        {circle(x_dist, top_y, 38, C_DIST, "Distributor Orders", distributor_order)}
         {arrow(x_dist+55, top_y, x_fact-55, top_y)}
-        {circle(x_fact, top_y, 48, C_FACT, "Factory Request", factory_order)}
+        {circle(x_fact, top_y, 38, C_FACT, "Factory Request", factory_order)}
 
         <!-- Bottom flow: Shipments / Inventories -->
-        {rect(x_retail-65, bot_y-35, 130, 70, C_RETAIL, "Retailer Inventory", retailer_inv, sub=f"backlog: {retailer_bl}")}
+        {rect(x_retail-65, bot_y-35, 120, 55, C_RETAIL, "Retailer Inventory", retailer_inv, sub=f"backlog: {retailer_bl}")}
         {arrow(x_retail-75, bot_y, x_customer+55, bot_y)}
 
         {small_delay_box(x_retail+85, bot_y-35, r0, r1)}
@@ -512,7 +520,7 @@ def render_generated_supply_chain_diagram(
     </div>
     """
 
-    components.html(svg, height=460, scrolling=False)
+    components.html(svg, height=320, scrolling=False)
 
 
 
