@@ -616,23 +616,41 @@ def main() -> None:
         # Display role states and allow manual order entry
         manual_orders: Dict[str, int] = {}
 
-        for rid in ROLE_IDS:
-            ...
-            if role_configs[rid] == "MANUAL":
-                k = f"order_input_{rid}_{current_week}"
-                st.number_input(
-                    label=f"Order quantity for {rid}",
-                    min_value=0,
-                    value=int(current_demand),
-                    step=1,
-                    key=k,
-                )
-                manual_orders[rid] = int(st.session_state.get(k, 0))
+        manual_orders: Dict[str, int] = {}
 
+        st.markdown("### Supply Chain Roles")
+        for rid in ROLE_IDS:
+            col1, col2, col3 = st.columns([1, 1, 2])
+        
+            with col1:
+                st.markdown(f"**{rid.capitalize()}**")
+                st.markdown(f"Inventory: **{game_state[rid].inv}**")
+                st.markdown(f"Backlog: **{game_state[rid].backlog}**")
+        
+            with col2:
+                st.markdown(f"Mode: **{role_configs[rid]}**")
+                if role_configs[rid] == "MANUAL":
+                    k = f"order_input_{rid}_{current_week}"
+                    st.number_input(
+                        label=f"Order quantity for {rid}",
+                        min_value=0,
+                        value=int(current_demand),
+                        step=1,
+                        key=k,
+                    )
+                    manual_orders[rid] = int(st.session_state.get(k, 0))
+        
             with col3:
                 if role_configs[rid] == "AI":
                     reasoning = ai_thoughts.get(rid, {}).get("reasoning", "Awaiting AI...")
                     st.write(f"AI reasoning: *{reasoning}*")
+
+
+
+
+
+
+        
         # Submit button
         disabled = (current_week >= TOTAL_WEEKS)
         if st.button(
