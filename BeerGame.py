@@ -654,6 +654,7 @@ def main() -> None:
             st.session_state.history += new_history
             if new_week >= TOTAL_WEEKS:
                 st.session_state.view = "results"
+            st.rerun()
 
         # Display inventory health chart
         st.markdown("### Inventory Health")
