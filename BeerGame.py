@@ -221,48 +221,42 @@ def process_turn(
     next_state = {rid: RoleState(inv=st.inv, backlog=st.backlog, incoming=list(st.incoming)) for rid, st in game_state.items()}
     next_costs = total_costs.copy()
 
-    # --- Step 1: receive incoming & decide shipments based on inventory/backlog ---
+    # --- FLOW SECTION (replace your calculate_flow + its calls with this) ---
+
     def step(role_id: str, demand_from_below: int) -> int:
         state = next_state[role_id]
     
-        # Receive incoming deliveries
+        # Receive incoming deliveries (arrive after delay)
         arrived = state.incoming[0]
         state.inv += arrived
     
-        # Shift incoming queue forward; placeholder for new incoming[1] filled later
+        # Shift incoming queue forward; we'll fill incoming[1] after we compute shipments
         state.incoming = [state.incoming[1], 0]
     
-        # Ship as much as possible
+        # Ship to downstream as much as possible
         total_needed = demand_from_below + state.backlog
         shipped = min(state.inv, total_needed)
         state.inv -= shipped
         state.backlog = total_needed - shipped
     
-        # Costs
+        # Update costs
         next_costs[role_id] += state.inv * HOLDING_COST + state.backlog * BACKLOG_COST
         return shipped
     
-    # demands down the chain
+    # Run flows top -> bottom
     ship_to_dist = step("factory", decisions["distributor"][0])
     ship_to_whole = step("distributor", decisions["wholesaler"][0])
     ship_to_retail = step("wholesaler", decisions["retailer"][0])
-    ship_to_customer = step("retailer", external_demand)
+    _ = step("retailer", external_demand)  # shipped to customer (unused)
     
-    # --- Step 2: push shipments into downstream incoming queues (2-week delay) ---
-    # shipments arrive in 2 weeks -> go into incoming[1] of the receiver
+    # Push shipments into downstream incoming queues (2-week delay)
     next_state["distributor"].incoming[1] = ship_to_dist
     next_state["wholesaler"].incoming[1] = ship_to_whole
     next_state["retailer"].incoming[1] = ship_to_retail
     
-    # --- Step 3: production pipeline at factory uses factory's "order" (production request)
+    # Factory production pipeline uses factory order decision as "production started"
     next_state["factory"].incoming[1] = decisions["factory"][0]
-    
-    # Starting from factory (top) down to retailer (bottom).  The demands for
-    # distributor, wholesaler and retailer depend on downstream orders.
-    calculate_flow("factory", decisions["distributor"][0])
-    calculate_flow("distributor", decisions["wholesaler"][0])
-    calculate_flow("wholesaler", decisions["retailer"][0])
-    calculate_flow("retailer", external_demand)
+
 
     # Record AI reasoning for each role.
     for rid in ROLE_IDS:
