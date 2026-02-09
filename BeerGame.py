@@ -32,6 +32,8 @@ import pandas as pd  # type: ignore
 import requests  # type: ignore
 import streamlit as st  # type: ignore
 import altair as alt  # type: ignore
+import streamlit.components.v1 as components
+
 
 
 # -----------------------------------------------------------------------------
@@ -510,7 +512,8 @@ def render_generated_supply_chain_diagram(
     </div>
     """
 
-    st.markdown(svg, unsafe_allow_html=True)
+    components.html(svg, height=460, scrolling=False)
+
 
 
 def main() -> None:
