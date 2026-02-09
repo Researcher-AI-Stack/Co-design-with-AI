@@ -467,7 +467,7 @@ def render_generated_supply_chain_diagram(
     """
 
 
-        <!-- Top flow: Orders -->
+    <!-- Top flow: Orders -->
         {circle(x_customer, top_y, 38, "white", "Customer Orders", int(current_demand))}
         {arrow(x_customer+55, top_y, x_retail-55, top_y)}
         {circle(x_retail, top_y, 38, C_RETAIL, "Retailer Orders", retailer_order)}
