@@ -451,23 +451,18 @@ def render_generated_supply_chain_diagram(
     x_fact     = 970
 
     svg = f"""
-    <div style="
-        width:100%;
-        max-width:100%;
-        overflow:hidden;
-        margin:0 auto;
-    ">
+    <div style="width:100%; max-width:100%; overflow:hidden; margin:0 auto;">
       <svg viewBox="0 0 {W} {H}"
            width="100%"
            preserveAspectRatio="xMidYMid meet"
            xmlns="http://www.w3.org/2000/svg">
-        ...
-      </svg>
-    </div>
-    """
-
-
-    <!-- Top flow: Orders -->
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L9,3 z" fill="{C_LINE}"/>
+          </marker>
+        </defs>
+    
+        <!-- Top flow: Orders -->
         {circle(x_customer, top_y, 38, "white", "Customer Orders", int(current_demand))}
         {arrow(x_customer+55, top_y, x_retail-55, top_y)}
         {circle(x_retail, top_y, 38, C_RETAIL, "Retailer Orders", retailer_order)}
@@ -477,45 +472,44 @@ def render_generated_supply_chain_diagram(
         {circle(x_dist, top_y, 38, C_DIST, "Distributor Orders", distributor_order)}
         {arrow(x_dist+55, top_y, x_fact-55, top_y)}
         {circle(x_fact, top_y, 38, C_FACT, "Factory Request", factory_order)}
-
+    
         <!-- Bottom flow: Shipments / Inventories -->
-        {rect(x_retail-65, bot_y-35, 120, 55, C_RETAIL, "Retailer Inventory", retailer_inv, sub=f"backlog: {retailer_bl}")}
-        {arrow(x_retail-75, bot_y, x_customer+55, bot_y)}
-
+        {rect(x_retail-60, bot_y-28, 120, 55, C_RETAIL, "Retailer Inventory", retailer_inv, sub=f"backlog: {retailer_bl}")}
+        {arrow(x_retail-70, bot_y, x_customer+55, bot_y)}
+    
         {small_delay_box(x_retail+85, bot_y-35, r0, r1)}
-        {arrow(x_retail+65, bot_y, x_retail+85, bot_y)}
-        {arrow(x_retail+255, bot_y, x_whole-65, bot_y)}
-
-        {rect(x_whole-65, bot_y-35, 130, 70, C_WHOLE, "Wholesaler Inventory", wholesaler_inv, sub=f"backlog: {wholesaler_bl}")}
+        {arrow(x_retail+60, bot_y, x_retail+85, bot_y)}
+        {arrow(x_retail+225, bot_y, x_whole-60, bot_y)}
+    
+        {rect(x_whole-60, bot_y-28, 120, 55, C_WHOLE, "Wholesaler Inventory", wholesaler_inv, sub=f"backlog: {wholesaler_bl}")}
         {small_delay_box(x_whole+85, bot_y-35, w0, w1)}
-        {arrow(x_whole+65, bot_y, x_whole+85, bot_y)}
-        {arrow(x_whole+255, bot_y, x_dist-65, bot_y)}
-
-        {rect(x_dist-65, bot_y-35, 130, 70, C_DIST, "Distributor Inventory", distributor_inv, sub=f"backlog: {distributor_bl}")}
+        {arrow(x_whole+60, bot_y, x_whole+85, bot_y)}
+        {arrow(x_whole+225, bot_y, x_dist-60, bot_y)}
+    
+        {rect(x_dist-60, bot_y-28, 120, 55, C_DIST, "Distributor Inventory", distributor_inv, sub=f"backlog: {distributor_bl}")}
         {small_delay_box(x_dist+85, bot_y-35, d0, d1)}
-        {arrow(x_dist+65, bot_y, x_dist+85, bot_y)}
-        {arrow(x_dist+255, bot_y, x_fact-65, bot_y)}
-
-        {rect(x_fact-65, bot_y-35, 130, 70, C_FACT, "Factory Inventory", factory_inv, sub=f"backlog: {factory_bl}")}
-
+        {arrow(x_dist+60, bot_y, x_dist+85, bot_y)}
+        {arrow(x_dist+225, bot_y, x_fact-60, bot_y)}
+    
+        {rect(x_fact-60, bot_y-28, 120, 55, C_FACT, "Factory Inventory", factory_inv, sub=f"backlog: {factory_bl}")}
+    
         <!-- Production delays to the right -->
         <g>
-          <rect x="{x_fact+120}" y="{top_y+40}" rx="16" ry="16" width="150" height="220"
+          <rect x="{x_fact+120}" y="{top_y+35}" rx="16" ry="16" width="130" height="190"
                 fill="{C_BOX}" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
-          <text x="{x_fact+195}" y="{top_y+30}" text-anchor="middle" font-size="14" font-weight="700" fill="{C_TEXT}">
+          <text x="{x_fact+185}" y="{top_y+25}" text-anchor="middle" font-size="14" font-weight="700" fill="{C_TEXT}">
             Production delays
           </text>
-          <circle cx="{x_fact+195}" cy="{top_y+110}" r="26" fill="white" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
-          <circle cx="{x_fact+195}" cy="{top_y+185}" r="26" fill="white" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
-          <text x="{x_fact+195}" y="{top_y+116}" text-anchor="middle" font-size="16" font-weight="800" fill="{C_TEXT}">{f0}</text>
-          <text x="{x_fact+195}" y="{top_y+191}" text-anchor="middle" font-size="16" font-weight="800" fill="{C_TEXT}">{f1}</text>
+          <circle cx="{x_fact+185}" cy="{top_y+90}" r="22" fill="white" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
+          <circle cx="{x_fact+185}" cy="{top_y+150}" r="22" fill="white" stroke="rgba(17,24,39,0.15)" stroke-width="2"/>
+          <text x="{x_fact+185}" y="{top_y+96}" text-anchor="middle" font-size="14" font-weight="800" fill="{C_TEXT}">{f0}</text>
+          <text x="{x_fact+185}" y="{top_y+156}" text-anchor="middle" font-size="14" font-weight="800" fill="{C_TEXT}">{f1}</text>
         </g>
-
+    
         <!-- Footer -->
-        <text x="{W/2}" y="{H-18}" text-anchor="middle" font-size="12" fill="{C_TEXT}" opacity="0.75">
-          Units: {unit_label} · Numbers update each submitted week (inventory / delays / orders)
+        <text x="{W/2}" y="{H-12}" text-anchor="middle" font-size="12" fill="{C_TEXT}" opacity="0.75">
+          Units: {unit_label} - Numbers update each submitted week (inventory / delays / orders)
         </text>
-
       </svg>
     </div>
     """
